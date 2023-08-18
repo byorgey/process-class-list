@@ -11,24 +11,27 @@ import Data.Csv
 import Data.List (group, sort, sortBy)
 import Data.Ord (comparing)
 import qualified Data.Vector as V
+import System.Directory (listDirectory)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
-import System.FilePath (takeBaseName, takeDirectory, (-<.>), (</>))
+import System.FilePath (isExtensionOf, takeBaseName, (-<.>), (</>))
 import System.Process.Typed (proc, runProcess, shell)
 
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [] -> putStrLn "Usage: process-class-list class-nn.xls class-nn.xls ..."
-    classLists -> processClassList classLists
+    [dir] -> processClassList dir
+    _ -> putStrLn "Usage: process-class-list <DIR>"
 
-processClassList :: [FilePath] -> IO ()
-processClassList classListFiles = do
-  let classPrefix = takeWhile (/= '-') (takeBaseName (head classListFiles))
-      dir = takeDirectory (head classListFiles)
-  sections <- forM classListFiles $ \classListFile -> do
-    let section = drop 1 . dropWhile (/= '-') . takeBaseName $ classListFile
+processClassList :: FilePath -> IO ()
+processClassList classListDir = do
+  dirFiles <- listDirectory classListDir
+  let classListFiles = filter ((||) <$> isExtensionOf "xls" <*> isExtensionOf "xlsx") dirFiles
+      classPrefix = takeWhile (/= '-') (takeBaseName (head classListFiles))
+  sections <- forM classListFiles $ \classListFileEnd -> do
+    let classListFile = classListDir </> classListFileEnd
+        section = drop 1 . dropWhile (/= '-') . takeBaseName $ classListFile
     -- Fix "Biochemistry &" formatting
     _ <- runProcess (shell $ "sed -ie 's/Biochemistry \\& /Biochemistry \\&amp; /g' " ++ classListFile)
     -- Convert .xls to .csv
@@ -51,7 +54,7 @@ processClassList classListFiles = do
   -- Output each section in all formats
   forM_ allSections $ \(section, students) ->
     forM_ formats $ \fmt ->
-      uncurry writeFile (fmt (dir </> withSection section classPrefix, students))
+      uncurry writeFile (fmt (classListDir </> withSection section classPrefix, students))
 
 withSection :: String -> String -> String
 withSection "" prefix = prefix
@@ -77,15 +80,19 @@ raw = mkFmt "raw" show
 
 checklist :: Format
 checklist =
-  mkFmt "checklist" $
-    unlines . map checklistItem . sortBy (comparing fname <> comparing lname)
+  mkFmt "checklist"
+    $ unlines
+    . map checklistItem
+    . sortBy (comparing fname <> comparing lname)
  where
   checklistItem s = "{{[[TODO]]}} [[person/" ++ fname s ++ " " ++ lname s ++ "]]"
 
 textNames :: Format
 textNames =
-  mkFmt "txt" $
-    unlines . map name . sortBy (comparing fname <> comparing lname)
+  mkFmt "txt"
+    $ unlines
+    . map name
+    . sortBy (comparing fname <> comparing lname)
  where
   name s = fname s ++ " " ++ lname s
 
