@@ -8,8 +8,12 @@ import Control.Monad (forM, forM_, mzero)
 import qualified Data.ByteString.Lazy as BL
 import Data.Char (isSpace, toLower)
 import Data.Csv
-import Data.List (group, sort, sortBy)
+import Data.List (find, group, sort, sortBy)
+import Data.List.Split (splitOn)
 import Data.Ord (comparing)
+import qualified Data.Text as T
+import Data.Text.ICU.Char
+import Data.Text.ICU.Normalize2
 import qualified Data.Vector as V
 import System.Directory (listDirectory)
 import System.Environment (getArgs)
@@ -24,11 +28,17 @@ main = do
     [dir] -> processClassList dir
     _ -> putStrLn "Usage: process-class-list <DIR>"
 
+applyNameSubst :: [[String]] -> Student -> Student
+applyNameSubst ns s = case find ((== [fname s, lname s]) . take 2) ns of
+  Just [_, _, newfirst, newlast] -> s {fname = newfirst, lname = newlast}
+  _ -> s
+
 processClassList :: FilePath -> IO ()
 processClassList classListDir = do
   dirFiles <- listDirectory classListDir
   let classListFiles = filter ((||) <$> isExtensionOf "xls" <*> isExtensionOf "xlsx") dirFiles
       classPrefix = takeWhile (/= '-') (takeBaseName (head classListFiles))
+  nameSubsts <- map (splitOn ",") . lines <$> readFile "/home/brent/.config/process-class-list/name_substs.txt"
   sections <- forM classListFiles $ \classListFileEnd -> do
     let classListFile = classListDir </> classListFileEnd
         section = drop 1 . dropWhile (/= '-') . takeBaseName $ classListFile
@@ -39,11 +49,11 @@ processClassList classListDir = do
     _ <- runProcess (proc "ssconvert" [classListFile, csvFile])
     -- Chop off first line, which just has sheet title information
     _ <- runProcess (shell $ "tail -n +2 " ++ csvFile ++ " | sponge " ++ csvFile)
-    -- Read CSV
+    -- Read CSV & apply name substitutions
     csvData <- BL.readFile csvFile
     case decodeByName csvData of
       Left err -> putStrLn err >> exitFailure
-      Right (_, students) -> return (section, V.toList students)
+      Right (_, students) -> return (section, map (applyNameSubst nameSubsts) . V.toList $ students)
 
   -- Also create a combined section for the entire class, if there's
   -- more than one section
@@ -63,6 +73,16 @@ withSection s prefix = prefix ++ "-" ++ s
 -- Combine all sections into the entire class
 combine :: [(String, [Student])] -> (String, [Student])
 combine ss = ("", map head . group . sort . concatMap snd $ ss)
+
+------------------------------------------------------------
+-- String processing
+
+-- https://stackoverflow.com/questions/44290218/how-do-you-remove-accents-from-a-string-in-haskell
+canonicalForm :: String -> String
+canonicalForm s = T.unpack noAccents
+ where
+  noAccents = T.filter (not . property Diacritic) normalizedText
+  normalizedText = normalize NFD (T.pack s)
 
 ------------------------------------------------------------
 -- Formats
@@ -99,7 +119,7 @@ textNames =
 alias :: Format
 alias (fn, students) = (fn -<.> "alias", unlines (aliases ++ [classAlias]))
  where
-  handle s = map toLower (fname s) ++ "." ++ [toLower (head (lname s))]
+  handle s = map toLower (canonicalForm (fname s)) ++ "." ++ [toLower (head (lname s))]
   mkEmail s = unwords [fname s, lname s, "<" ++ email s ++ ">"]
   mkAlias s = unwords ["alias", handle s, "\"" ++ mkEmail s ++ "\""]
   aliases = map mkAlias students
