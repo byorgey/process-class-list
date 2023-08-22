@@ -146,7 +146,7 @@ data Student = Student
   , lname :: !String
   , email :: !String
   , major :: !String
-  , year :: !Year
+  , year :: !(Maybe Year)
   }
   deriving (Eq, Ord, Show)
 
