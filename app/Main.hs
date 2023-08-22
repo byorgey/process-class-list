@@ -157,18 +157,13 @@ getLName = takeWhile (/= ',')
 instance FromNamedRecord Student where
   parseNamedRecord r =
     Student
-      <$> r
-      .: "FERPA Restrict"
-      <*> r
-      .: "Student ID"
+      <$> (r .: "FERPA Restrict")
+      <*> (r .: "Student ID")
       <*> (getFName <$> (r .: "Student"))
       <*> (getLName <$> (r .: "Student"))
-      <*> r
-      .: "Email"
-      <*> r
-      .: "Major"
-      <*> r
-      .: "Class"
+      <*> (r .: "Email")
+      <*> (r .: "Major")
+      <*> (r .: "Class")
 
 instance FromField Bool where
   parseField = \case
