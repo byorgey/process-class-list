@@ -1,9 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main where
 
+import Data.Bool (bool)
 import Control.Monad (forM, forM_, mzero)
 import qualified Data.ByteString.Lazy as BL
 import Data.Char (isSpace, toLower)
@@ -12,6 +15,9 @@ import Data.List (find, group, sort, sortBy)
 import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import Data.Text.ICU.Char
 import Data.Text.ICU.Normalize2
 import qualified Data.Vector as V
@@ -90,7 +96,7 @@ canonicalForm s = T.unpack noAccents
 type Format = (FilePath, [Student]) -> (FilePath, String)
 
 formats :: [Format]
-formats = [raw, checklist, textNames, alias]
+formats = [raw, checklist, textNames, alias, gradebook]
 
 mkFmt :: String -> ([Student] -> String) -> Format
 mkFmt ext f (fn, students) = (fn -<.> ext, f students)
@@ -124,6 +130,9 @@ alias (fn, students) = (fn -<.> "alias", unlines (aliases ++ [classAlias]))
   mkAlias s = unwords ["alias", handle s, "\"" ++ mkEmail s ++ "\""]
   aliases = map mkAlias students
   classAlias = unwords $ ["alias", "class." ++ takeBaseName fn] ++ map handle students
+
+gradebook :: Format
+gradebook = mkFmt "gradebook.csv" $ TL.unpack . TL.decodeUtf8 . encode
 
 ------------------------------------------------------------
 -- Data types
@@ -170,3 +179,19 @@ instance FromField Bool where
     "Y" -> pure True
     "N" -> pure False
     _ -> mzero
+
+instance ToRecord Student where
+  toRecord Student{..} = record
+    [ toField ferpa
+    , toField studentID
+    , toField (lname ++ ", " ++ fname)
+    , toField email
+    , toField major
+    , toField year
+    ]
+
+instance ToField Bool where
+  toField = bool "N" "Y"
+
+instance ToField Year where
+  toField = T.encodeUtf8 . T.pack . show
