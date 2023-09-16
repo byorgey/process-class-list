@@ -6,8 +6,8 @@
 
 module Main where
 
-import Data.Bool (bool)
 import Control.Monad (forM, forM_, mzero)
+import Data.Bool (bool)
 import qualified Data.ByteString.Lazy as BL
 import Data.Char (isSpace, toLower)
 import Data.Csv
@@ -16,10 +16,10 @@ import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
 import Data.Text.ICU.Char
 import Data.Text.ICU.Normalize2
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.Vector as V
 import System.Directory (listDirectory)
 import System.Environment (getArgs)
@@ -106,19 +106,19 @@ raw = mkFmt "raw" show
 
 checklist :: Format
 checklist =
-  mkFmt "checklist"
-    $ unlines
-    . map checklistItem
-    . sortBy (comparing fname <> comparing lname)
+  mkFmt "checklist" $
+    unlines
+      . map checklistItem
+      . sortBy (comparing fname <> comparing lname)
  where
   checklistItem s = "{{[[TODO]]}} [[person/" ++ fname s ++ " " ++ lname s ++ "]]"
 
 textNames :: Format
 textNames =
-  mkFmt "txt"
-    $ unlines
-    . map name
-    . sortBy (comparing fname <> comparing lname)
+  mkFmt "txt" $
+    unlines
+      . map name
+      . sortBy (comparing fname <> comparing lname)
  where
   name s = fname s ++ " " ++ lname s
 
@@ -181,14 +181,15 @@ instance FromField Bool where
     _ -> mzero
 
 instance ToRecord Student where
-  toRecord Student{..} = record
-    [ toField ferpa
-    , toField studentID
-    , toField (lname ++ ", " ++ fname)
-    , toField email
-    , toField major
-    , toField year
-    ]
+  toRecord Student {..} =
+    record
+      [ toField ferpa
+      , toField studentID
+      , toField (lname ++ ", " ++ fname)
+      , toField email
+      , toField major
+      , toField year
+      ]
 
 instance ToField Bool where
   toField = bool "N" "Y"
