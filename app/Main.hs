@@ -96,7 +96,7 @@ canonicalForm s = T.unpack noAccents
 type Format = (FilePath, [Student]) -> (FilePath, String)
 
 formats :: [Format]
-formats = [raw, checklist, textNames, alias, gradebook]
+formats = [raw, checklist, textNames, alias, gradebook, emails]
 
 mkFmt :: String -> ([Student] -> String) -> Format
 mkFmt ext f (fn, students) = (fn -<.> ext, f students)
@@ -133,6 +133,9 @@ alias (fn, students) = (fn -<.> "alias", unlines (aliases ++ [classAlias]))
 
 gradebook :: Format
 gradebook = mkFmt "gradebook.csv" $ TL.unpack . TL.decodeUtf8 . encode
+
+emails :: Format
+emails = mkFmt "email" $ unlines . map email . sortBy (comparing lname <> comparing fname)
 
 ------------------------------------------------------------
 -- Data types
